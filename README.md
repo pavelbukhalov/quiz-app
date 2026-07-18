@@ -13,14 +13,13 @@
 
 ## Технологии
 
-- Backend: Node.js, Express, Socket.IO, better-sqlite3
-- Frontend: HTML5, CSS3, JavaScript (vanilla)
-- База данных: SQLite
+- **Backend**: Node.js, Express, Socket.IO, better-sqlite3
+- **Frontend**: HTML5, CSS3, JavaScript (vanilla)
+- **База данных**: SQLite
 
 ## Установка
 
 1. Клонируйте репозиторий:
-```bash
 git clone https://github.com/YOUR_USERNAME/quiz-app.git
 cd quiz-app
 
@@ -33,7 +32,6 @@ npm run dev
 
 4. Откройте Frontend/index.html в браузере
 
-Роли:
-
+## Роли
 Организатор — создаёт квизы, добавляет вопросы, управляет игрой
 Участник — подключается по коду комнаты и отвечает на вопросы
