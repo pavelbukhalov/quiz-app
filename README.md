@@ -20,15 +20,21 @@
 ## Установка
 
 1. Клонируйте репозиторий:
+```bash
 git clone https://github.com/YOUR_USERNAME/quiz-app.git
 cd quiz-app
+```
 
 2. Установите зависимости:
+```bash
 cd Backend
 npm install
+```
 
 3. Запустите сервер:
+```bash
 npm run dev
+```
 
 4. Откройте Frontend/index.html в браузере
 
