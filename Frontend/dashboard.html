@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Мои квизы - QuizApp</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <nav class="navbar">
+            <div class="nav-brand">QuizApp</div>
+            <div class="nav-user">
+                <span id="user-name">Пользователь</span>
+                <button onclick="api.logout()" class="btn-logout">Выйти</button>
+            </div>
+        </nav>
+
+        <div class="container">
+            <div class="dashboard-header">
+                <h1>Мои квизы</h1>
+                <a href="create-quiz.html" class="btn-primary">+ Создать новый квиз</a>
+            </div>
+
+            <div id="quizzes-list" class="quizzes-grid">
+                <!-- Сюда будут загружаться квизы -->
+                <div class="loading">Загрузка...</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script>
+        const user = api.getUser(); // Проверка авторизации
+        if (!user || user.role !== 'organizer') {
+            window.location.href = 'index.html';
+        }
+        document.getElementById('user-name').textContent = user.username;
+
+        async function loadQuizzes() { // Загрузка квизов
+            try {
+                const quizzes = await api.getMyQuizzes();
+                const container = document.getElementById('quizzes-list');
+                
+                if (quizzes.length === 0) {
+                    container.innerHTML = '<p class="no-quizzes">У вас пока нет квизов. Создайте первый!</p>';
+                    return;
+                }
+
+                container.innerHTML = quizzes.map(quiz => `
+                    <div class="quiz-card">
+                        <h3>${quiz.title}</h3>
+                        <p>${quiz.description || 'Нет описания'}</p>
+                        <div class="quiz-info">
+                            <span> Код: <strong>${quiz.room_code}</strong></span>
+                            <span>Статус: <strong class="status-${quiz.status}">${quiz.status}</strong></span>
+                        </div>
+                        <div class="quiz-actions">
+                            <a href="add-questions.html?quizId=${quiz.id}&title=${encodeURIComponent(quiz.title)}&roomCode=${quiz.room_code}" class="btn-action btn-secondary">Добавить вопросы</a>
+                            <a href="lobby.html?roomCode=${quiz.room_code}" class="btn-action btn-primary">Запустить</a>
+                        </div>
+                        ${quiz.status === 'finished' ? `
+                        <button onclick="deleteQuiz(${quiz.id}, '${quiz.title}')" class="btn-delete">Удалить квиз</button>
+                        ` : ''}
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Ошибка загрузки квизов:', error);
+            }
+        }
+
+        loadQuizzes();
+
+        async function deleteQuiz(quizId, quizTitle) {
+            if (!confirm(`Удалить квиз "${quizTitle}"? Это действие нельзя отменить!`)) {
+                return;
+            }
+            
+            try {
+                await api.deleteQuiz(quizId);
+                alert('Квиз успешно удалён!');
+                loadQuizzes(); // Перезагружаем список
+            } catch (error) {
+                alert('Ошибка удаления квиза: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>

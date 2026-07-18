@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Добавление вопросов - QuizApp</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <nav class="navbar">
+            <div class="nav-brand">QuizApp</div>
+            <div class="nav-user">
+                <span id="user-name">Пользователь</span>
+                <button onclick="api.logout()" class="btn-logout">Выйти</button>
+            </div>
+        </nav>
+
+        <div class="container">
+            <div class="quiz-header">
+                <h1>Добавление вопросов</h1>
+                <div class="quiz-info-bar">
+                    <span>Квиз: <strong id="quiz-title">Загрузка...</strong></span>
+                    <a href="dashboard.html" class="btn-secondary">← Назад</a>
+                </div>
+            </div>
+
+            <!-- Форма добавления вопроса -->
+            <form id="question-form" class="question-form">
+                <div class="form-group">
+                    <label>Режим ответа:</label>
+                    <select id="answer-mode" onchange="updateAnswerHint(this.value)">
+                        <option value="single">Одиночный выбор (один правильный ответ)</option>
+                        <option value="multiple">Множественный выбор (несколько правильных)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Тип вопроса:</label>
+                    <select id="question-type">
+                        <option value="text">Текстовый вопрос</option>
+                        <option value="image">Вопрос с изображением</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Текст вопроса:</label>
+                    <textarea id="question-text" placeholder="Введите текст вопроса..." required rows="3"></textarea>
+                </div>
+
+                <div class="form-group hidden" id="image-url-group">
+                    <label>URL изображения:</label>
+                    <input type="url" id="image-url" placeholder="https://example.com/image.jpg">
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Время на ответ (секунды):</label>
+                        <input type="number" id="time-limit" value="30" min="10" max="120" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Баллы за правильный ответ:</label>
+                        <input type="number" id="points" value="100" min="10" max="1000" required>
+                    </div>
+                </div>
+
+                <div class="answers-section">
+                    <h3>Варианты ответов:</h3>
+                    <p class="hint" id="answer-hint">Отметьте ОДИН правильный ответ</p>
+                    
+                    <div id="answers-container">
+                        <!-- Здесь будут генерироваться ответы через JavaScript -->
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-primary">Добавить вопрос</button>
+            </form>
+
+            <!-- Список добавленных вопросов -->
+            <div class="questions-list-section">
+                <h2>Добавленные вопросы (<span id="questions-count">0</span>)</h2>
+                <div id="questions-list">
+                    <p class="no-questions">Пока нет добавленных вопросов</p>
+                </div>
+            </div>
+
+            <!-- Кнопка запуска -->
+            <div class="launch-section hidden" id="launch-section">
+                <button onclick="launchQuiz()" class="btn-primary btn-large">Запустить квиз</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script>
+        const user = api.getUser(); // Проверка авторизации
+        if (!user || user.role !== 'organizer') {
+            window.location.href = 'index.html';
+        }
+        document.getElementById('user-name').textContent = user.username;
+
+        const urlParams = new URLSearchParams(window.location.search); // Получение параметров из URL
+        const quizId = urlParams.get('quizId');
+        const quizTitle = urlParams.get('title');
+        
+        if (!quizId) {
+            alert('ID квиза не указан!');
+            window.location.href = 'dashboard.html';
+        }
+
+        document.getElementById('quiz-title').textContent = quizTitle || 'Квиз';
+
+        let questions = [];
+
+        function generateAnswerFields() { // Для генерации полей ответов
+            const container = document.getElementById('answers-container');
+            const answerMode = document.getElementById('answer-mode').value;
+            const inputType = answerMode === 'single' ? 'radio' : 'checkbox';
+            const groupName = answerMode === 'single' ? 'correct-answer-single' : 'correct-answers';
+            
+            let html = '';
+            for (let i = 0; i < 4; i++) {
+                html += `
+                    <div class="answer-row">
+                        <input type="text" class="answer-text" placeholder="Вариант ${i + 1}" ${i < 2 ? 'required' : ''}>
+                        <label class="correct-answer">
+                            <input type="${inputType}" name="${groupName}" value="${i}" data-answer="${i}">
+                            <span>✓</span>
+                        </label>
+                    </div>
+                `;
+            }
+            
+            container.innerHTML = html;
+        }
+
+        generateAnswerFields();
+
+        function updateAnswerHint(mode) {
+            const hint = document.getElementById('answer-hint');
+            
+            if (mode === 'single') {
+                hint.textContent = 'Отметьте ОДИН правильный ответ';
+            } else {
+                hint.textContent = 'Отметьте ВСЕ правильные ответы (можно несколько)';
+            }
+            
+            generateAnswerFields();
+        }
+
+        document.getElementById('question-type').addEventListener('change', (e) => { // Показ/скрытие поля для изображения
+            const imageGroup = document.getElementById('image-url-group');
+            if (e.target.value === 'image') {
+                imageGroup.classList.remove('hidden');
+            } else {
+                imageGroup.classList.add('hidden');
+            }
+        });
+
+        document.getElementById('question-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const type = document.getElementById('question-type').value;
+            const questionText = document.getElementById('question-text').value;
+            const imageUrl = document.getElementById('image-url').value;
+            const timeLimit = parseInt(document.getElementById('time-limit').value);
+            const points = parseInt(document.getElementById('points').value);
+            const answerMode = document.getElementById('answer-mode').value;
+
+            const answerInputs = document.querySelectorAll('.answer-text');
+            const groupName = answerMode === 'single' ? 'correct-answer-single' : 'correct-answers';
+            const correctChecks = document.querySelectorAll(`input[name="${groupName}"]:checked`);
+            
+            if (correctChecks.length === 0) {
+                alert('Выберите хотя бы один правильный ответ!');
+                return;
+            }
+
+            if (answerMode === 'single' && correctChecks.length > 1) {
+                alert('В режиме одиночного выбора можно отметить только ОДИН правильный ответ!');
+                return;
+            }
+
+            const answers = [];
+            answerInputs.forEach((input, index) => {
+                if (input.value.trim()) {
+                    const isCorrect = Array.from(correctChecks).some(check => parseInt(check.value) === index);
+                    answers.push({
+                        text: input.value.trim(),
+                        is_correct: isCorrect
+                    });
+                }
+            });
+
+            if (answers.length < 2) {
+                alert('Добавьте минимум 2 варианта ответа!');
+                return;
+            }
+
+            if (!answers.some(a => a.is_correct)) { // Есть хотя бы один правильный ответ
+                alert('Должен быть хотя бы один правильный ответ!');
+                return;
+            }
+
+            try {
+                const questionData = {
+                    type,
+                    question_text: questionText,
+                    image_url: type === 'image' ? imageUrl : null,
+                    time_limit: timeLimit,
+                    points: points,
+                    answer_mode: answerMode,
+                    answers: answers
+                };
+
+                console.log('Отправляем вопрос на сервер:', questionData);
+
+                await api.addQuestion(quizId, questionData);
+                
+                console.log('Вопрос успешно добавлен!');
+                
+                questions.push({
+                    id: questions.length + 1,
+                    text: questionText,
+                    type: type,
+                    answerMode: answerMode === 'single' ? 'Одиночный' : 'Множественный',
+                    answersCount: answers.length
+                });
+
+                document.getElementById('question-text').value = '';
+                document.getElementById('image-url').value = '';
+                document.getElementById('question-type').value = 'text';
+                document.getElementById('image-url-group').classList.add('hidden');
+                document.getElementById('answer-mode').value = 'single';
+                updateAnswerHint('single');
+
+                updateQuestionsList();
+                
+                alert('Вопрос добавлен!');
+            } catch (error) {
+                alert('Ошибка добавления вопроса: ' + error.message);
+            }
+        });
+
+        function updateQuestionsList() {
+            const container = document.getElementById('questions-list');
+            document.getElementById('questions-count').textContent = questions.length;
+            
+            if (questions.length === 0) {
+                container.innerHTML = '<p class="no-questions">Пока нет добавленных вопросов</p>';
+                document.getElementById('launch-section').classList.add('hidden');
+                return;
+            }
+
+            container.innerHTML = questions.map((q, index) => `
+                <div class="question-item">
+                    <div class="question-number">Вопрос ${index + 1}</div>
+                    <div class="question-text">${q.text}</div>
+                    <div class="question-meta">
+                        <span>${q.type === 'image' ? 'С картинкой' : ' Текстовый'}</span>
+                        <span>${q.answerMode}</span>
+                        <span>${q.answersCount} вариантов ответа</span>
+                    </div>
+                </div>
+            `).join('');
+
+            document.getElementById('launch-section').classList.remove('hidden');
+        }
+
+        function launchQuiz() {
+            if (questions.length === 0) {
+                alert('Добавьте хотя бы один вопрос!');
+                return;
+            }
+            const roomCode = urlParams.get('roomCode');
+            if (roomCode) {
+                window.location.href = `lobby.html?roomCode=${roomCode}`;
+            } else {
+                alert('Код комнаты не найден! Вернитесь в кабинет.');
+            }
+        }
+
+        // Загружаем существующие вопросы при открытии страницы
+        async function loadExistingQuestions() {
+            try {
+                const response = await fetch(`http://localhost:3000/api/quizzes/${quizId}/questions`, {
+                    headers: { 'Authorization': api.getToken() }
+                });
+                const data = await response.json();
+                if (Array.isArray(data)) {
+                    questions = data.map((q, i) => ({
+                        id: q.id,
+                        text: q.question_text,
+                        type: q.type,
+                        answerMode: q.answer_mode === 'single' ? 'Одиночный' : 'Множественный',
+                        answersCount: 4
+                    }));
+                    updateQuestionsList();
+                }
+            } catch (error) {
+                console.log('Нет существующих вопросов');
+            }
+        }
+
+        loadExistingQuestions();
+    </script>
+</body>
+</html>

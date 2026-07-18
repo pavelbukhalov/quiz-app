@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Лобби - QuizApp</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="lobby-container">
+        <h1>Лобби квиза</h1>
+        <div class="room-code-display">
+            <p>Код комнаты:</p>
+            <h2 id="room-code">---</h2>
+        </div>
+
+        <div class="participants-list">
+            <h3>Участники (<span id="count">0</span>)</h3>
+            <ul id="participants"></ul>
+        </div>
+
+        <button id="start-btn" class="btn-primary hidden">Начать игру</button>
+        <button id="back-btn" class="btn-secondary">← Вернуться в кабинет</button>
+        <p class="waiting">Ожидание подключения участников...</p>
+    </div>
+
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="js/api.js"></script>
+    <script>
+        const user = api.getUser();
+        if (!user) {
+            window.location.href = 'index.html';
+        }
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomCode = urlParams.get('roomCode');
+        
+        if (!roomCode) {
+            alert('Код комнаты не указан!');
+            window.location.href = 'dashboard.html';
+        }
+
+        document.getElementById('room-code').textContent = roomCode;
+
+        const socket = io('http://localhost:3000');
+
+        socket.emit('join_room', { // Присоед. к комнате
+            roomCode: roomCode,
+            nickname: user.username,
+            userId: user.id
+        });
+
+        socket.on('room_joined', (data) => {
+            updateParticipants(data.participants);
+            if (user.role === 'organizer') {
+                document.getElementById('start-btn').classList.remove('hidden');
+            }
+        });
+
+        socket.on('update_participants', (participants) => {
+            updateParticipants(participants);
+        });
+
+        function updateParticipants(participants) {
+            const list = document.getElementById('participants');
+            document.getElementById('count').textContent = participants.length;
+            list.innerHTML = participants.map(p => `<li>${p.nickname}</li>`).join('');
+        }
+
+        document.getElementById('start-btn').addEventListener('click', () => {
+            window.location.href = `game.html?roomCode=${roomCode}&autoStart=true`;
+        });
+
+        document.getElementById('back-btn').addEventListener('click', () => { // Возвращение в кабинет
+            if (user.role === 'organizer') {
+                window.location.href = 'dashboard.html';
+            } else {
+                window.location.href = 'participant-dashboard.html';
+            }
+        });
+    </script>
+</body>
+</html>

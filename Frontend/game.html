@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Игра - QuizApp</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="game-container">
+        <div id="waiting-screen" class="screen">
+            <h2>Ожидание начала игры...</h2>
+            <p>Организатор скоро начнет квиз</p>
+        </div>
+
+        <div id="question-screen" class="screen hidden">
+            <div class="question-header">
+                <div class="timer" id="timer">30</div>
+                <div class="question-number">Вопрос <span id="q-number">1</span></div>
+            </div>
+            
+            <div class="question-content">
+                <h2 id="question-text">Текст вопроса</h2>
+                <img id="question-image" class="hidden" src="" alt="Question">
+            </div>
+
+            <div class="answers-grid" id="answers-container">
+                <!-- Кнопки с ответами будут здесь -->
+            </div>
+        </div>
+
+        <div id="result-screen" class="screen hidden">
+            <h2 id="result-message"></h2>
+            <p id="result-details"></p>
+        </div>
+
+        <div id="leaderboard-screen" class="screen hidden">
+            <h2>Результаты</h2>
+            <div id="leaderboard-list"></div>
+            <a href="dashboard.html" class="btn-primary" style="margin-top: 30px; display: inline-block; text-decoration: none;">Вернуться в кабинет</a>
+        </div>
+
+        <div id="organizer-controls" class="organizer-controls hidden">
+            <button id="next-question-btn" class="btn-control">Следующий вопрос →</button>
+            <button id="finish-game-btn" class="btn-control btn-danger">Завершить игру</button>
+        </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="js/api.js"></script>
+    <script>
+        const user = api.getUser();
+        if (!user) {
+            window.location.href = 'index.html';
+        }
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomCode = urlParams.get('roomCode');
+        const socket = io('http://localhost:3000');
+
+        let currentQuestionId = null;
+        let currentAnswerMode = 'single';
+        let selectedAnswers = [];
+        let timeLimit = 30;
+        let timerInterval = null;
+
+        socket.emit('join_room', { // Присоед. к комнате
+            roomCode: roomCode,
+            nickname: user.username,
+            userId: user.id
+        });
+
+        socket.on('new_question', (data) => { // Новый вопрос
+            showQuestion(data);
+        });
+
+        socket.on('answer_result', (data) => { // Результат ответа
+            showResult(data.isCorrect);
+        });
+
+        socket.on('game_finished', (leaderboard) => { // Игра закончена
+            showLeaderboard(leaderboard);
+        });
+
+        function showQuestion(data) {
+            document.getElementById('waiting-screen').classList.add('hidden');
+            document.getElementById('result-screen').classList.add('hidden');
+            document.getElementById('question-screen').classList.remove('hidden');
+            
+            document.getElementById('q-number').textContent = data.question.id;
+            document.getElementById('question-text').textContent = data.question.question_text;
+            
+            if (data.question.image_url) {
+                const img = document.getElementById('question-image');
+                img.src = data.question.image_url;
+                img.classList.remove('hidden');
+            } else {
+                document.getElementById('question-image').classList.add('hidden');
+            }
+
+            const container = document.getElementById('answers-container');
+            container.innerHTML = '';
+            container.className = 'answers-grid'; // сброс классов
+            
+            const answerMode = data.question.answer_mode || 'single';
+            
+            data.answers.forEach((answer, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'answer-btn';
+                btn.dataset.answerId = answer.id;
+                btn.textContent = `${String.fromCharCode(65 + index)}. ${answer.answer_text}`;
+                
+                if (answerMode === 'multiple') {
+                    btn.classList.add('multiple-choice');
+                    btn.onclick = () => toggleAnswer(btn, answer.id);
+                } else {
+                    btn.onclick = () => submitAnswer(answer.id);
+                }
+                
+                container.appendChild(btn);
+            });
+
+            currentQuestionId = data.question.id;
+            currentAnswerMode = answerMode;
+            selectedAnswers = [];
+            
+            timeLimit = data.question.time_limit;
+            startTimer(timeLimit);
+        }
+
+        function startTimer(seconds) {
+            let timeLeft = seconds;
+            document.getElementById('timer').textContent = timeLeft;
+            
+            if (timerInterval) clearInterval(timerInterval);
+            
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                document.getElementById('timer').textContent = timeLeft;
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                }
+            }, 1000);
+        }
+
+        function toggleAnswer(btn, answerId) {
+            btn.classList.toggle('selected');
+            
+            const index = selectedAnswers.indexOf(answerId);
+            if (index > -1) {
+                selectedAnswers.splice(index, 1);
+                console.log('Убран ответ:', answerId);
+            } else {
+                selectedAnswers.push(answerId);
+                console.log('Добавлен ответ:', answerId);
+                
+                socket.emit('submit_answer', { // Отправление ответа на сервер
+                    roomCode: roomCode,
+                    questionId: currentQuestionId,
+                    answerId: answerId
+                });
+                console.log('Отправлен ответ на сервер:', answerId);
+            }
+        }
+
+        function submitAnswer(answerId) {
+            const answersToSend = currentAnswerMode === 'multiple' ? selectedAnswers : [answerId];
+            
+            if (answersToSend.length === 0) {
+                alert('Выберите хотя бы один ответ!');
+                return;
+            }
+            
+            answersToSend.forEach(ansId => {
+                socket.emit('submit_answer', {
+                    roomCode: roomCode,
+                    questionId: currentQuestionId,
+                    answerId: ansId
+                });
+            });
+            
+            if (currentAnswerMode === 'multiple') {
+                document.querySelectorAll('.answer-btn').forEach(btn => {
+                    btn.disabled = true;
+                    if (btn.classList.contains('selected')) {
+                        btn.classList.add('submitted');
+                    }
+                });
+            }
+        }
+
+        function submitAnswer(answerId) {
+            socket.emit('submit_answer', {
+                roomCode: roomCode,
+                questionId: currentQuestionId,
+                answerId: answerId
+            });
+        }
+
+        function showResult(isCorrect) {
+            document.getElementById('question-screen').classList.add('hidden');
+            document.getElementById('result-screen').classList.remove('hidden');
+            
+            const msg = document.getElementById('result-message');
+            const details = document.getElementById('result-details');
+            
+            if (isCorrect) {
+                msg.textContent = 'Правильно!';
+                msg.style.color = '#27ae60';
+                details.textContent = 'Ждём следующий вопрос от организатора...';
+            } else {
+                msg.textContent = 'Неправильно';
+                msg.style.color = '#e74c3c';
+                details.textContent = 'Ждём следующий вопрос от организатора...';
+            }
+        }
+
+        function showLeaderboard(leaderboard) {
+            console.log('Игра завершена! Лидерборд:', leaderboard); // Лог для отладки
+            
+            document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden')); // Скрытие панели управления организатора
+            const controls = document.getElementById('organizer-controls');
+            if (controls) controls.classList.add('hidden');
+            
+            document.getElementById('leaderboard-screen').classList.remove('hidden');
+            
+            const list = document.getElementById('leaderboard-list');
+            if (leaderboard && leaderboard.length > 0) {
+                list.innerHTML = leaderboard.map((p, i) => `
+                    <div class="leaderboard-item ${i === 0 ? 'first' : ''}">
+                        <span class="rank">${i === 0 ? '🥇' : (i === 1 ? '🥈' : (i === 2 ? '🥉' : i + 1))}</span>
+                        <span class="nickname">${p.nickname}</span>
+                        <span class="score">${p.score} очков</span>
+                    </div>
+                `).join('');
+            } else {
+                list.innerHTML = '<p>Нет участников с баллами</p>';
+            }
+        }
+
+        if (user.role === 'organizer') { // Панель управления только для организатора
+            document.getElementById('organizer-controls').classList.remove('hidden');
+            
+            document.getElementById('next-question-btn').addEventListener('click', () => { // "Следующий вопрос"
+                socket.emit('next_question', { roomCode });
+            });
+            
+            document.getElementById('finish-game-btn').addEventListener('click', () => { // "Завершить игру"
+                if (confirm('Завершить игру?')) {
+                    console.log('Отправляем сигнал завершения для комнаты:', roomCode);
+                    socket.emit('finish_game', { roomCode });
+                }
+            });
+        }
+
+        // Автозапуск для организатора
+        const urlParams2 = new URLSearchParams(window.location.search);
+        const autoStart = urlParams2.get('autoStart');
+
+        if (user.role === 'organizer' && autoStart === 'true') {
+            socket.on('room_joined', () => { // Ожидание подключения к комнате, потом запуск
+                console.log('Организатор подключился, запускаем игру...');
+                socket.emit('start_game', { roomCode });
+            });
+        }
+    </script>
+</body>
+</html>

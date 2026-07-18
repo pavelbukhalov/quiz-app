@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Создание квиза - QuizApp</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <nav class="navbar">
+            <div class="nav-brand">QuizApp</div>
+            <div class="nav-user">
+                <span id="user-name">Пользователь</span>
+                <button onclick="api.logout()" class="btn-logout">Выйти</button>
+            </div>
+        </nav>
+
+        <div class="container">
+            <h1>Создание нового квиза</h1>
+            
+            <form id="create-quiz-form" class="quiz-form">
+                <input type="text" id="quiz-title" placeholder="Название квиза" required>
+                <textarea id="quiz-description" placeholder="Описание квиза" rows="3"></textarea>
+                <button type="submit" class="btn-primary">Создать квиз</button>
+            </form>
+
+            <div id="quiz-created" class="hidden">
+                <h2>Квиз создан!</h2>
+                <p>Код комнаты: <strong id="room-code"></strong></p>
+                <a href="dashboard.html" class="btn-primary">Вернуться в кабинет</a>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script>
+        const user = api.getUser();
+        if (!user || user.role !== 'organizer') {
+            window.location.href = 'index.html';
+        }
+        document.getElementById('user-name').textContent = user.username;
+
+        document.getElementById('create-quiz-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const title = document.getElementById('quiz-title').value;
+            const description = document.getElementById('quiz-description').value;
+
+            try {
+                const result = await api.createQuiz(title, description);
+                document.getElementById('room-code').textContent = result.roomCode;
+                document.getElementById('create-quiz-form').classList.add('hidden');
+                document.getElementById('quiz-created').classList.remove('hidden');
+            } catch (error) {
+                alert('Ошибка создания квиза: ' + error.message);
+            }
+        });
+    </script>
+</body>
+</html>

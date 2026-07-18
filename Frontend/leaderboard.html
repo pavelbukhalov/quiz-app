@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Результаты - QuizApp</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Результаты квиза</h1>
+        <div id="leaderboard" class="leaderboard-final">
+            <div class="loading">Загрузка результатов...</div>
+        </div>
+        <a href="index.html" class="btn-primary" style="margin-top: 30px;">На главную</a>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script>
+        document.getElementById('leaderboard').innerHTML = `
+            <div class="leaderboard-item first">
+                <span class="rank">1</span>
+                <span class="nickname">Игрок 1</span>
+                <span class="score">500 очков</span>
+            </div>
+            <div class="leaderboard-item">
+                <span class="rank">2</span>
+                <span class="nickname">Игрок 2</span>
+                <span class="score">400 очков</span>
+            </div>
+            <div class="leaderboard-item">
+                <span class="rank"> 3</span>
+                <span class="nickname">Игрок 3</span>
+                <span class="score">300 очков</span>
+            </div>
+        `;
+    </script>
+</body>
+</html>

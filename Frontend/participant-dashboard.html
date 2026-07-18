@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Мой профиль - QuizApp</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <nav class="navbar">
+            <div class="nav-brand">QuizApp</div>
+            <div class="nav-user">
+                <span id="user-name">Пользователь</span>
+                <button onclick="api.logout()" class="btn-logout">Выйти</button>
+            </div>
+        </nav>
+
+        <div class="container">
+            <div class="dashboard-header">
+                <h1>Моя история участия</h1>
+                <div class="stats-bar">
+                    <div class="stat-item">
+                        <span class="stat-value" id="total-quizzes">0</span>
+                        <span class="stat-label">Квизов пройдено</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-value" id="total-score">0</span>
+                        <span class="stat-label">Всего баллов</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Форма для подключения к квизу -->
+            <div class="join-quiz-section">
+                <h2>Подключиться к квизу</h2>
+                <form id="join-form" class="join-form">
+                    <input type="text" id="room-code-input" placeholder="Введите 6-значный код комнаты" maxlength="6" required>
+                    <input type="text" id="nickname-input" placeholder="Ваш никнейм" required>
+                    <button type="submit" class="btn-primary">Подключиться</button>
+                </form>
+            </div>
+
+            <!-- История участия -->
+            <div class="history-section">
+                <h2>История квизов</h2>
+                <div id="history-list">
+                    <div class="loading">Загрузка истории...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script>
+        const user = api.getUser();
+        if (!user || user.role !== 'participant') { // Проверка авторизации
+            window.location.href = 'index.html';
+        }
+        document.getElementById('user-name').textContent = user.username;
+
+        document.getElementById('join-form').addEventListener('submit', (e) => { // Подключение к квизу
+            e.preventDefault();
+            const roomCode = document.getElementById('room-code-input').value.trim();
+            const nickname = document.getElementById('nickname-input').value.trim();
+            
+            if (roomCode.length !== 6) {
+                alert('Код комнаты должен состоять из 6 цифр!');
+                return;
+            }
+            
+            if (!nickname) {
+                alert('Введите никнейм!');
+                return;
+            }
+            
+            localStorage.setItem('nickname', nickname);
+            window.location.href = `lobby.html?roomCode=${roomCode}`;
+        });
+
+        async function loadHistory() { // Загрузка истории
+            try {
+                const history = await api.getParticipantHistory();
+                const container = document.getElementById('history-list');
+                
+                // Обновление статистики
+                document.getElementById('total-quizzes').textContent = history.length;
+                const totalScore = history.reduce((sum, h) => sum + (h.score || 0), 0);
+                document.getElementById('total-score').textContent = totalScore;
+                
+                if (history.length === 0) {
+                    container.innerHTML = '<p class="no-quizzes">Вы ещё не участвовали ни в одном квизе. Подключитесь по коду комнаты!</p>';
+                    return;
+                }
+
+                container.innerHTML = history.map(h => `
+                    <div class="history-item">
+                        <div class="history-main">
+                            <h3>${h.quiz_title}</h3>
+                            <div class="history-meta">
+                                <span>Код: ${h.room_code}</span>
+                                <span>Участников: ${h.total_participants}</span>
+                                <span class="status-${h.status}">${h.status === 'finished' ? 'Завершён' : h.status === 'active' ? 'Активен' : 'Черновик'}</span>
+                            </div>
+                        </div>
+                        <div class="history-score">
+                            <span class="score-value">${h.score}</span>
+                            <span class="score-label">баллов</span>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Ошибка загрузки истории:', error);
+                document.getElementById('history-list').innerHTML = '<p class="error">Ошибка загрузки истории</p>';
+            }
+        }
+
+        loadHistory();
+    </script>
+</body>
+</html>
